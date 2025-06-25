@@ -112,7 +112,6 @@ module.exports = (io) => {
     socket.on("call-offer", ({ to, offer }) => {
       const from = socket.username;
       const targetSocketId = connectedUsers.get(to);
-       console.log(`📞 Call offer from ${from} to ${to} - Target Socket: ${targetSocketId}`);
       if (targetSocketId) {
         io.to(targetSocketId).emit("call-offer", { from, offer });
       }
