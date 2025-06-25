@@ -510,7 +510,11 @@ function startVoiceCall() {
 }
 
 socket.on("call-offer", async ({ from, offer }) => {
-    if (!confirm(`Incoming video call from ${from}. Accept?`)) return;
+    const accept = confirm(`Incoming video call from ${from}. Accept?`);
+    if (!accept) {
+        socket.emit("end-call", { to: from });
+        return;
+    }
 
     selectedUser = from;
     chatWith.textContent = from;
