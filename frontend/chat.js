@@ -492,6 +492,7 @@ function startCall() {
                     return peerConnection.setLocalDescription(offer);
                 })
                 .then(() => {
+                    console.log("Sending call offer to:", selectedUser);
                     socket.emit("call-offer", {
                         to: selectedUser,
                         from: currentUser,
@@ -510,6 +511,7 @@ function startVoiceCall() {
 }
 
 socket.on("call-offer", async ({ from, offer }) => {
+    console.log(`📞 Incoming call from ${from}`);
     const accept = confirm(`Incoming video call from ${from}. Accept?`);
     if (!accept) {
         socket.emit("end-call", { to: from });
