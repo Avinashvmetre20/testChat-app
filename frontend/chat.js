@@ -226,7 +226,7 @@ function sendMessage() {
 
     // Ask if recipient is online
     socket.emit("check online", { user: selectedUser, timestamp });
-    
+
     messageInput.value = "";
 }
 
@@ -307,7 +307,7 @@ socket.on("private message", ({ from, to, text, timestamp }) => {
     if (selectedUser === from || selectedUser === to) {
         addMessage(text, type, from, timestamp);
     }
-    else{
+    else {
         showBadge(from);
         // Optional: show browser notification
         if (Notification.permission === "granted") {
@@ -330,7 +330,7 @@ socket.on("private message sent", ({ from, to, text, timestamp }) => {
     chatHistory[chatKey].push({ text, from, to, timestamp, type: "sent" });
 
     if (isCurrentChat) {
-        addMessage(text, "sent", from,timestamp);
+        addMessage(text, "sent", from, timestamp);
     } else {
         showBadge(chatKey);
     }
@@ -443,156 +443,171 @@ let localStream;
 let remoteStream;
 let peerConnection;
 const peerConfig = {
-  iceServers: [
-    { urls: "stun:stun.l.google.com:19302" },
-  ]
+    iceServers: [
+        { urls: "stun:stun.l.google.com:19302" },
+    ]
 };
 
 const localVideo = document.getElementById("localVideo");
 const remoteVideo = document.getElementById("remoteVideo");
 
 function startCall() {
-  if (!selectedUser || selectedUser === "public") {
-    alert("Select a user to start a video call.");
-    return;
-  }
+    if (!selectedUser || selectedUser === "public") {
+        alert("Select a user to start a video call.");
+        return;
+    }
 
-  navigator.mediaDevices.getUserMedia({ video: true, audio: true })
-    .then(stream => {
-      localStream = stream;
-      localVideo.srcObject = stream;
+    navigator.mediaDevices.getUserMedia({ video: true, audio: true })
+        .then(stream => {
+            localStream = stream;
+            localVideo.srcObject = stream;
 
-      peerConnection = new RTCPeerConnection(peerConfig);
+            document.getElementById("videoCallContainer").style.display = "flex";
+            peerConnection = new RTCPeerConnection(peerConfig);
 
-      // Add tracks to connection
-      localStream.getTracks().forEach(track => {
-        peerConnection.addTrack(track, localStream);
-      });
+            // Add tracks to connection
+            localStream.getTracks().forEach(track => {
+                peerConnection.addTrack(track, localStream);
+            });
 
-      peerConnection.onicecandidate = (event) => {
-        if (event.candidate) {
-          socket.emit("ice-candidate", {
-            to: selectedUser,
-            candidate: event.candidate
-          });
-        }
-      };
+            peerConnection.onicecandidate = (event) => {
+                if (event.candidate) {
+                    socket.emit("ice-candidate", {
+                        to: selectedUser,
+                        candidate: event.candidate
+                    });
+                }
+            };
 
-      peerConnection.ontrack = (event) => {
-        remoteStream = event.streams[0];
-        remoteVideo.srcObject = remoteStream;
-      };
+            remoteStream = new MediaStream();
+            remoteVideo.srcObject = remoteStream;
 
-      peerConnection.createOffer()
-        .then(offer => {
-          return peerConnection.setLocalDescription(offer);
+            peerConnection.ontrack = (event) => {
+                event.track && remoteStream.addTrack(event.track);
+            };
+            ;
+
+            peerConnection.createOffer()
+                .then(offer => {
+                    return peerConnection.setLocalDescription(offer);
+                })
+                .then(() => {
+                    socket.emit("call-offer", {
+                        to: selectedUser,
+                        from: currentUser,
+                        offer: peerConnection.localDescription
+                    });
+                });
         })
-        .then(() => {
-          socket.emit("call-offer", {
-            to: selectedUser,
-            from: currentUser,
-            offer: peerConnection.localDescription
-          });
+        .catch(err => {
+            console.error("Failed to access media devices:", err);
         });
-    })
-    .catch(err => {
-      console.error("Failed to access media devices:", err);
-    });
 }
 
 function startVoiceCall() {
-  // Use same flow as startCall, but only request audio
-  alert("Voice call not implemented yet. Coming soon!");
+    // Use same flow as startCall, but only request audio
+    alert("Voice call not implemented yet. Coming soon!");
 }
 
 socket.on("call-offer", async ({ from, offer }) => {
-  if (!confirm(`Incoming video call from ${from}. Accept?`)) return;
+    if (!confirm(`Incoming video call from ${from}. Accept?`)) return;
 
-  selectedUser = from;
-  chatWith.textContent = from;
+    selectedUser = from;
+    chatWith.textContent = from;
 
     document.getElementById("videoCallContainer").style.display = "flex"; // 🔴 show video call container
 
 
-  localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-  localVideo.srcObject = localStream;
+    localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+    localVideo.srcObject = localStream;
 
-  peerConnection = new RTCPeerConnection(peerConfig);
+    peerConnection = new RTCPeerConnection(peerConfig);
 
-  localStream.getTracks().forEach(track => {
-    peerConnection.addTrack(track, localStream);
-  });
+    localStream.getTracks().forEach(track => {
+        peerConnection.addTrack(track, localStream);
+    });
 
-  peerConnection.onicecandidate = (event) => {
-    if (event.candidate) {
-      socket.emit("ice-candidate", {
-        to: from,
-        candidate: event.candidate
-      });
-    }
-  };
+    peerConnection.onicecandidate = (event) => {
+        if (event.candidate) {
+            socket.emit("ice-candidate", {
+                to: from,
+                candidate: event.candidate
+            });
+        }
+    };
 
-  peerConnection.ontrack = (event) => {
-    remoteStream = event.streams[0];
+    remoteStream = new MediaStream();
     remoteVideo.srcObject = remoteStream;
-  };
+    peerConnection.ontrack = (event) => {
+        event.track && remoteStream.addTrack(event.track);
+    };
 
-  await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
-  const answer = await peerConnection.createAnswer();
-  await peerConnection.setLocalDescription(answer);
 
-  socket.emit("call-answer", {
-    to: from,
-    answer: answer
-  });
+    await peerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+    const answer = await peerConnection.createAnswer();
+    await peerConnection.setLocalDescription(answer);
+
+    socket.emit("call-answer", {
+        to: from,
+        answer: answer
+    });
 });
 
 socket.on("call-answer", async ({ answer }) => {
-  if (peerConnection) {
-    await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
-  }
+    if (peerConnection) {
+        await peerConnection.setRemoteDescription(new RTCSessionDescription(answer));
+    }
 });
 
 socket.on("ice-candidate", async ({ candidate }) => {
-  if (peerConnection && candidate) {
-    try {
-      await peerConnection.addIceCandidate(candidate);
-    } catch (err) {
-      console.error("Error adding ICE candidate:", err);
+    if (peerConnection && candidate) {
+        try {
+            await peerConnection.addIceCandidate(candidate);
+        } catch (err) {
+            console.error("Error adding ICE candidate:", err);
+        }
     }
-  }
 });
 
 
 // ======================================
 // Call Button Listeners
 document.getElementById("videoCallBtn").addEventListener("click", () => {
-  document.getElementById("videoCallContainer").style.display = "flex"; // Show the video overlay
-  startCall();
+    document.getElementById("videoCallContainer").style.display = "flex"; // Show the video overlay
+    startCall();
 });
 
 document.getElementById("voiceCallBtn").addEventListener("click", () => {
-  alert("Voice calling is not implemented yet.");
-  // startVoiceCall(); // implement this if needed
+    alert("Voice calling is not implemented yet.");
+    // startVoiceCall(); // implement this if needed
 });
 
 // End call button
 function endCall() {
-  if (peerConnection) {
-    peerConnection.close();
-    peerConnection = null;
-  }
-  if (localStream) {
-    localStream.getTracks().forEach(track => track.stop());
-    localStream = null;
-  }
+    if (peerConnection) {
+        peerConnection.close();
+        peerConnection = null;
+    }
 
-  document.getElementById("videoCallContainer").style.display = "none";
-  socket.emit("end-call", { to: selectedUser });
+    if (localStream) {
+        localStream.getTracks().forEach(track => track.stop());
+        localStream = null;
+    }
+
+    if (remoteStream) {
+        remoteStream.getTracks().forEach(track => track.stop());
+        remoteStream = null;
+    }
+    if (remoteVideo) {
+  remoteVideo.srcObject = null;
+}
+
+    document.getElementById("videoCallContainer").style.display = "none";
+    socket.emit("end-call", { to: selectedUser });
 }
 
 // Handle call ended from remote peer
 socket.on("call-ended", ({ from }) => {
-  alert(`Call ended by ${from}`);
-  endCall();
+    alert(`Call ended by ${from}`);
+    endCall();
 });
